@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+streamlit
+chromadb
+sentence-transformers
+openai
+pydantic
+pydantic-settings
+requests
+python-dotenv
+pypdf
+numpy
+pytest
