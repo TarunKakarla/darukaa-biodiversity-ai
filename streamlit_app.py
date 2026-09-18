@@ -36,49 +36,88 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
+def start_new_conversation():
+    """
+    Start a completely new conversation.
+    """
+
+    st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.messages = []
+
+    st.rerun()
+
+
 # =========================================================
-# Helper: Create Environmental Metrics
+# Environmental Metrics
 # =========================================================
 
-def create_metrics(
-    soil_ph,
-    soil_organic_carbon,
-    soil_moisture,
-    land_use_type,
-    crop,
-    species_richness,
-    habitat_diversity,
-    temperature,
-    rainfall,
-    pollution,
-    deforestation,
-    region,
-):
+def create_metrics():
+    """
+    Create the EnvironmentalMetrics object from
+    the values currently selected in the sidebar.
+    """
+
     return EnvironmentalMetrics(
-        soil_ph=soil_ph,
-        soil_organic_carbon=soil_organic_carbon,
-        soil_moisture=soil_moisture or None,
-        land_use_type=land_use_type or None,
-        crop=crop or None,
-        species_richness=species_richness,
-        habitat_diversity=habitat_diversity,
-        temperature=temperature,
-        rainfall=rainfall or None,
-        pollution=pollution or None,
-        deforestation=deforestation or None,
-        region=region or None,
+        soil_ph=st.session_state.soil_ph,
+        soil_organic_carbon=(
+            st.session_state.soil_organic_carbon
+        ),
+        soil_moisture=(
+            st.session_state.soil_moisture
+            or None
+        ),
+        land_use_type=(
+            st.session_state.land_use_type
+            or None
+        ),
+        crop=(
+            st.session_state.crop
+            or None
+        ),
+        species_richness=(
+            st.session_state.species_richness
+        ),
+        habitat_diversity=(
+            st.session_state.habitat_diversity
+        ),
+        temperature=(
+            st.session_state.temperature
+        ),
+        rainfall=(
+            st.session_state.rainfall
+            or None
+        ),
+        pollution=(
+            st.session_state.pollution
+            or None
+        ),
+        deforestation=(
+            st.session_state.deforestation
+            or None
+        ),
+        region=(
+            st.session_state.region
+            or None
+        ),
     )
 
 
 # =========================================================
-# Helper: Display Evidence
+# Evidence Display
 # =========================================================
 
 def display_evidence(evidence):
+    """
+    Display recommendation-level supporting evidence.
+    """
+
     if not evidence:
         return
 
-    for i, item in enumerate(evidence, start=1):
+    for i, item in enumerate(
+        evidence,
+        start=1,
+    ):
 
         if not isinstance(item, dict):
             st.write(item)
@@ -90,10 +129,14 @@ def display_evidence(evidence):
             or f"Evidence {i}"
         )
 
-        page = item.get("page_number")
+        page = item.get(
+            "page_number"
+        )
 
         excerpt = (
-            item.get("supporting_excerpt_or_summary")
+            item.get(
+                "supporting_excerpt_or_summary"
+            )
             or item.get("excerpt")
             or item.get("summary")
         )
@@ -103,33 +146,149 @@ def display_evidence(evidence):
             or item.get("url")
         )
 
-        with st.expander(f"Evidence {i}: {title}"):
+        with st.expander(
+            f"📄 {title}"
+        ):
 
             if page is not None:
-                st.write(f"**Page:** {page}")
+                st.write(
+                    f"**Page:** {page}"
+                )
 
             if excerpt:
-                st.write(f"**Evidence:** {excerpt}")
+                st.write(
+                    f"**Supporting evidence:** "
+                    f"{excerpt}"
+                )
 
             if url:
-                st.markdown(f"[Open source]({url})")
+                st.markdown(
+                    f"[🔗 Open source]({url})"
+                )
 
 
 # =========================================================
-# Helper: Display Retrieved Sources
+# Retrieved Sources Display
 # =========================================================
 
-def display_sources(sources):
+def display_sources(
+    sources,
+    evidence_sources=None,
+):
+    """
+    Display the scientific sources returned by the RAG
+    pipeline.
+
+    Page numbers are first taken directly from
+    retrieved_sources.
+
+    If a page number is missing there, the function checks
+    recommendation-level evidence for the same source.
+    """
+
     if not sources:
         return
 
-    st.subheader("📚 Retrieved Scientific Sources")
+    evidence_sources = evidence_sources or []
 
-    for i, source in enumerate(sources, start=1):
 
-        if not isinstance(source, dict):
-            st.write(source)
+    # =====================================================
+    # Build page-number lookup
+    # =====================================================
+
+    page_lookup = {}
+
+    for evidence in evidence_sources:
+
+        if not isinstance(
+            evidence,
+            dict,
+        ):
             continue
+
+        title = (
+            evidence.get("source_title")
+            or evidence.get("title")
+        )
+
+        url = (
+            evidence.get("source_url")
+            or evidence.get("url")
+        )
+
+        page = evidence.get(
+            "page_number"
+        )
+
+        if page is None:
+            continue
+
+        if title:
+            page_lookup[
+                ("title", title.strip().lower())
+            ] = page
+
+        if url:
+            page_lookup[
+                ("url", url.strip())
+            ] = page
+
+
+    # =====================================================
+    # Remove duplicate sources
+    # =====================================================
+
+    unique_sources = []
+    seen = set()
+
+    for source in sources:
+
+        if not isinstance(
+            source,
+            dict,
+        ):
+            continue
+
+        title = (
+            source.get("source_title")
+            or source.get("title")
+            or ""
+        )
+
+        url = (
+            source.get("source_url")
+            or source.get("url")
+            or ""
+        )
+
+        key = (
+            title.strip().lower(),
+            url.strip(),
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        unique_sources.append(source)
+
+
+    if not unique_sources:
+        return
+
+
+    # =====================================================
+    # Display
+    # =====================================================
+
+    st.subheader(
+        "📚 Scientific Sources"
+    )
+
+    for i, source in enumerate(
+        unique_sources,
+        start=1,
+    ):
 
         title = (
             source.get("source_title")
@@ -137,55 +296,132 @@ def display_sources(sources):
             or f"Source {i}"
         )
 
-        page = source.get("page_number")
-
-        excerpt = (
-            source.get("supporting_excerpt_or_summary")
-            or source.get("excerpt")
-            or source.get("summary")
-        )
-
         url = (
             source.get("source_url")
             or source.get("url")
         )
 
-        with st.expander(f"{i}. {title}"):
+        excerpt = (
+            source.get(
+                "supporting_excerpt_or_summary"
+            )
+            or source.get("excerpt")
+            or source.get("summary")
+        )
 
-            if page is not None:
-                st.write(f"**Page:** {page}")
 
-            if excerpt:
-                st.write(f"**Evidence:** {excerpt}")
+        # -------------------------------------------------
+        # First use page number returned directly
+        # by retrieved_sources.
+        # -------------------------------------------------
+
+        page = source.get(
+            "page_number"
+        )
+
+
+        # -------------------------------------------------
+        # If missing, search recommendation evidence.
+        # -------------------------------------------------
+
+        if page is None:
 
             if url:
-                st.markdown(f"[Open source]({url})")
+
+                page = page_lookup.get(
+                    (
+                        "url",
+                        url.strip(),
+                    )
+                )
+
+            if page is None and title:
+
+                page = page_lookup.get(
+                    (
+                        "title",
+                        title.strip().lower(),
+                    )
+                )
+
+
+        # -------------------------------------------------
+        # Source card
+        # -------------------------------------------------
+
+        with st.expander(
+            f"📄 {title}",
+            expanded=True,
+        ):
+
+            if page is not None:
+
+                st.markdown(
+                    f"**Page:** {page}"
+                )
+
+            else:
+
+                st.write(
+                    "**Page:** Not provided by retrieved metadata"
+                )
+
+            if excerpt:
+
+                st.markdown(
+                    f"**Supporting evidence:** "
+                    f"{excerpt}"
+                )
+
+            if url:
+
+                st.markdown(
+                    f"[🔗 Open report]({url})"
+                )
 
 
 # =========================================================
-# Helper: Display Complete Pipeline Result
+# Response Display
 # =========================================================
 
 def display_result(result):
+    """
+    Display the complete response returned by
+    app.pipeline.process().
+    """
 
-    if not isinstance(result, dict):
+    if not isinstance(
+        result,
+        dict,
+    ):
         st.write(result)
         return
 
-    response_type = result.get("type")
 
-    # -----------------------------------------------------
-    # Clarification
-    # -----------------------------------------------------
+    response_type = result.get(
+        "type"
+    )
+
+
+    # =====================================================
+    # Clarification Response
+    # =====================================================
 
     if response_type == "clarification":
 
-        st.info("Additional environmental information is required.")
+        st.info(
+            "Additional environmental information is required."
+        )
 
-        question = result.get("question")
+        question = result.get(
+            "question"
+        )
 
         if question:
-            st.markdown(f"### ❓ {question}")
+
+            st.markdown(
+                f"### ❓ {question}"
+            )
 
         missing_metrics = result.get(
             "missing_metrics",
@@ -194,42 +430,105 @@ def display_result(result):
 
         if missing_metrics:
 
-            st.write("**Missing metrics:**")
+            st.write(
+                "**Missing information:**"
+            )
 
             for metric in missing_metrics:
-                st.write(f"- {metric}")
+
+                st.write(
+                    f"- {metric}"
+                )
 
         return
 
-    # -----------------------------------------------------
-    # Recommendations
-    # -----------------------------------------------------
+
+    # =====================================================
+    # Recommendation Response
+    # =====================================================
 
     if response_type == "recommendations":
 
-        summary = result.get("summary")
+        # -------------------------------------------------
+        # Scientific Assessment
+        # -------------------------------------------------
+
+        summary = result.get(
+            "summary"
+        )
 
         if summary:
-            st.subheader("🌿 Scientific Assessment")
-            st.write(summary)
+
+            st.subheader(
+                "🌿 Scientific Assessment"
+            )
+
+            st.write(
+                summary
+            )
+
+
+        # -------------------------------------------------
+        # Recommendations
+        # -------------------------------------------------
 
         recommendations = result.get(
             "recommendations",
             [],
         )
 
+
+        # -------------------------------------------------
+        # Collect recommendation evidence
+        # for page-number recovery.
+        # -------------------------------------------------
+
+        evidence_sources = []
+
+
+        for recommendation in recommendations:
+
+            if not isinstance(
+                recommendation,
+                dict,
+            ):
+                continue
+
+            evidence_sources.extend(
+                recommendation.get(
+                    "evidence",
+                    [],
+                )
+            )
+
+
         if recommendations:
 
-            st.subheader("💡 Recommendations")
+            st.subheader(
+                "💡 Recommendations"
+            )
+
 
             for i, recommendation in enumerate(
                 recommendations,
                 start=1,
             ):
 
-                if not isinstance(recommendation, dict):
-                    st.write(recommendation)
+                if not isinstance(
+                    recommendation,
+                    dict,
+                ):
+
+                    st.write(
+                        recommendation
+                    )
+
                     continue
+
+
+                # =========================================
+                # What to do
+                # =========================================
 
                 what_to_do = recommendation.get(
                     "what_to_do",
@@ -240,57 +539,76 @@ def display_result(result):
                     f"### {i}. {what_to_do}"
                 )
 
+
+                # =========================================
+                # Why it works
+                # =========================================
+
                 why_it_works = recommendation.get(
                     "why_it_works"
                 )
 
                 if why_it_works:
+
                     st.markdown(
-                        f"**Why it works:** {why_it_works}"
+                        f"**Why it works:** "
+                        f"{why_it_works}"
                     )
 
-                # -----------------------------------------
-                # Recommendation metadata
-                # -----------------------------------------
 
-                col1, col2, col3 = st.columns(3)
+                # =========================================
+                # Compact Metadata
+                # =========================================
 
-                with col1:
-                    time_horizon = recommendation.get(
-                        "time_horizon"
+                time_horizon = recommendation.get(
+                    "time_horizon"
+                )
+
+                confidence = recommendation.get(
+                    "confidence"
+                )
+
+                impacted_metrics = recommendation.get(
+                    "impacted_metrics",
+                    [],
+                )
+
+
+                metadata = []
+
+
+                if time_horizon:
+
+                    metadata.append(
+                        f"⏱️ **Time:** "
+                        f"{str(time_horizon).capitalize()}"
                     )
 
-                    if time_horizon:
-                        st.metric(
-                            "Time Horizon",
-                            str(time_horizon).capitalize(),
-                        )
 
-                with col2:
-                    confidence = recommendation.get(
-                        "confidence"
+                if confidence:
+
+                    metadata.append(
+                        f"🎯 **Confidence:** "
+                        f"{str(confidence).capitalize()}"
                     )
 
-                    if confidence:
-                        st.metric(
-                            "Confidence",
-                            str(confidence).capitalize(),
-                        )
 
-                with col3:
-                    impacted_metrics = recommendation.get(
-                        "impacted_metrics",
-                        [],
+                metadata.append(
+                    f"📊 **Metrics:** "
+                    f"{len(impacted_metrics)}"
+                )
+
+
+                st.markdown(
+                    " &nbsp;&nbsp;|&nbsp;&nbsp; ".join(
+                        metadata
                     )
+                )
 
-                    st.metric(
-                        "Impacted Metrics",
-                        len(impacted_metrics),
-                    )
 
-                # -----------------------------------------
+                # =========================================
                 # Causal Chain
-                # -----------------------------------------
+                # =========================================
 
                 causal_chain = recommendation.get(
                     "causal_chain",
@@ -299,7 +617,9 @@ def display_result(result):
 
                 if causal_chain:
 
-                    st.markdown("**🔗 Causal Chain**")
+                    st.markdown(
+                        "**🔗 Causal Chain**"
+                    )
 
                     st.write(
                         " → ".join(
@@ -308,9 +628,10 @@ def display_result(result):
                         )
                     )
 
-                # -----------------------------------------
+
+                # =========================================
                 # Impacted Metrics
-                # -----------------------------------------
+                # =========================================
 
                 if impacted_metrics:
 
@@ -325,9 +646,10 @@ def display_result(result):
                         )
                     )
 
-                # -----------------------------------------
-                # Evidence
-                # -----------------------------------------
+
+                # =========================================
+                # Supporting Evidence
+                # =========================================
 
                 evidence = recommendation.get(
                     "evidence",
@@ -340,29 +662,46 @@ def display_result(result):
                         "**📖 Supporting Evidence**"
                     )
 
-                    display_evidence(evidence)
+                    display_evidence(
+                        evidence
+                    )
+
 
                 st.divider()
 
-        # ---------------------------------------------
-        # Sources
-        # ---------------------------------------------
 
-        display_sources(
-            result.get(
-                "retrieved_sources",
-                [],
-            )
+        # =================================================
+        # Retrieved Scientific Sources
+        # =================================================
+
+        sources = result.get(
+            "retrieved_sources",
+            [],
         )
+
+
+        if sources:
+
+            display_sources(
+                sources,
+                evidence_sources,
+            )
+
 
         return
 
-    # -----------------------------------------------------
-    # Unknown response
-    # -----------------------------------------------------
 
-    st.subheader("Response")
-    st.json(result)
+    # =====================================================
+    # Unknown Response
+    # =====================================================
+
+    st.subheader(
+        "Response"
+    )
+
+    st.json(
+        result
+    )
 
 
 # =========================================================
@@ -388,84 +727,103 @@ and biodiversity-focused recommendations.
 
 with st.sidebar:
 
-    st.header("🌍 Environmental Context")
+    st.header(
+        "🌍 Environmental Context"
+    )
 
     st.caption(
-        "Provide environmental conditions that "
-        "the reasoning pipeline can use."
+        "Provide environmental conditions used "
+        "by the reasoning pipeline."
     )
 
     st.divider()
 
-    # -----------------------------------------------------
+
+    # =====================================================
     # Soil
-    # -----------------------------------------------------
+    # =====================================================
 
-    st.subheader("🌱 Soil")
+    st.subheader(
+        "🌱 Soil"
+    )
 
-    soil_ph = st.number_input(
+    st.number_input(
         "Soil pH",
         min_value=0.0,
         max_value=14.0,
         value=7.0,
         step=0.1,
+        key="soil_ph",
     )
 
-    soil_organic_carbon = st.number_input(
+    st.number_input(
         "Soil organic carbon (%)",
         min_value=0.0,
         value=0.3,
         step=0.1,
+        key="soil_organic_carbon",
     )
 
-    soil_moisture = st.text_input(
+    st.text_input(
         "Soil moisture",
         value="unknown",
+        key="soil_moisture",
     )
 
-    # -----------------------------------------------------
-    # Land and Agriculture
-    # -----------------------------------------------------
 
-    st.subheader("🌾 Land & Agriculture")
+    # =====================================================
+    # Land & Agriculture
+    # =====================================================
 
-    land_use_type = st.text_input(
+    st.subheader(
+        "🌾 Land & Agriculture"
+    )
+
+    st.text_input(
         "Land use type",
         value="monoculture",
+        key="land_use_type",
     )
 
-    crop = st.text_input(
+    st.text_input(
         "Crop",
         value="wheat",
+        key="crop",
     )
 
-    species_richness = st.number_input(
+    st.number_input(
         "Species richness",
         min_value=0.0,
         value=0.0,
         step=1.0,
+        key="species_richness",
     )
 
-    habitat_diversity = st.number_input(
+    st.number_input(
         "Habitat diversity",
         min_value=0.0,
         value=0.0,
         step=0.1,
+        key="habitat_diversity",
     )
 
-    # -----------------------------------------------------
+
+    # =====================================================
     # Climate
-    # -----------------------------------------------------
+    # =====================================================
 
-    st.subheader("🌦️ Climate")
+    st.subheader(
+        "🌦️ Climate"
+    )
 
-    temperature = st.number_input(
+    st.number_input(
         "Temperature (°C)",
         value=25.0,
         step=0.5,
+        key="temperature",
     )
 
-    rainfall = st.selectbox(
+    st.selectbox(
         "Rainfall",
         [
             "low",
@@ -473,60 +831,66 @@ with st.sidebar:
             "high",
         ],
         index=1,
+        key="rainfall",
     )
 
-    region = st.text_input(
+    st.text_input(
         "Region",
         value="semi-arid",
+        key="region",
     )
 
-    # -----------------------------------------------------
+
+    # =====================================================
     # Environmental Pressure
-    # -----------------------------------------------------
+    # =====================================================
 
-    st.subheader("⚠️ Environmental Pressure")
+    st.subheader(
+        "⚠️ Environmental Pressure"
+    )
 
-    pollution = st.text_input(
+    st.text_input(
         "Pollution",
         value="",
+        key="pollution",
     )
 
-    deforestation = st.text_input(
+    st.text_input(
         "Deforestation",
         value="",
+        key="deforestation",
     )
+
+
+    # =====================================================
+    # Conversation Memory
+    # =====================================================
 
     st.divider()
 
-    # -----------------------------------------------------
-    # Session Management
-    # -----------------------------------------------------
+    st.subheader(
+        "🧠 Conversation Memory"
+    )
 
-    st.subheader("💬 Session")
+    st.success(
+        "Active"
+    )
 
-    st.caption("Current Session ID")
-
-    st.code(
-        st.session_state.session_id,
-        language="text",
+    st.caption(
+        "All follow-up questions in this conversation "
+        "use the same session."
     )
 
     if st.button(
-        "🔄 Start New Session",
+        "🔄 Start New Conversation",
         use_container_width=True,
     ):
 
-        st.session_state.session_id = str(
-            uuid.uuid4()
-        )
-
-        st.session_state.messages = []
-
-        st.rerun()
+        start_new_conversation()
 
 
 # =========================================================
-# Previous Messages
+# Existing Chat History
 # =========================================================
 
 for message in st.session_state.messages:
@@ -536,11 +900,13 @@ for message in st.session_state.messages:
     ):
 
         if message["role"] == "user":
+
             st.markdown(
                 message["content"]
             )
 
         else:
+
             display_result(
                 message["content"]
             )
@@ -556,36 +922,34 @@ question = st.chat_input(
 
 
 # =========================================================
-# Run Pipeline
+# Process New Question
 # =========================================================
 
 if question:
 
     # -----------------------------------------------------
-    # Build EnvironmentalMetrics object
+    # Create environmental context
     # -----------------------------------------------------
 
-    metrics = create_metrics(
-        soil_ph=soil_ph,
-        soil_organic_carbon=soil_organic_carbon,
-        soil_moisture=soil_moisture,
-        land_use_type=land_use_type,
-        crop=crop,
-        species_richness=species_richness,
-        habitat_diversity=habitat_diversity,
-        temperature=temperature,
-        rainfall=rainfall,
-        pollution=pollution,
-        deforestation=deforestation,
-        region=region,
-    )
+    metrics = create_metrics()
+
 
     # -----------------------------------------------------
-    # Display User Message
+    # Display user question
     # -----------------------------------------------------
 
-    with st.chat_message("user"):
-        st.markdown(question)
+    with st.chat_message(
+        "user"
+    ):
+
+        st.markdown(
+            question
+        )
+
+
+    # -----------------------------------------------------
+    # Save user message
+    # -----------------------------------------------------
 
     st.session_state.messages.append(
         {
@@ -594,14 +958,18 @@ if question:
         }
     )
 
+
     # -----------------------------------------------------
-    # Run Existing RAG / Reasoning Pipeline
+    # Run existing RAG / reasoning pipeline
     # -----------------------------------------------------
 
-    with st.chat_message("assistant"):
+    with st.chat_message(
+        "assistant"
+    ):
 
         with st.spinner(
-            "🔎 Retrieving scientific evidence and generating recommendations..."
+            "🔎 Retrieving scientific evidence "
+            "and generating recommendations..."
         ):
 
             try:
@@ -612,7 +980,19 @@ if question:
                     question,
                 )
 
-                display_result(result)
+
+                # -----------------------------------------
+                # Display result
+                # -----------------------------------------
+
+                display_result(
+                    result
+                )
+
+
+                # -----------------------------------------
+                # Save assistant response
+                # -----------------------------------------
 
                 st.session_state.messages.append(
                     {
@@ -621,10 +1001,13 @@ if question:
                     }
                 )
 
+
             except Exception as e:
 
                 st.error(
                     "Failed to process the request."
                 )
 
-                st.exception(e)
+                st.exception(
+                    e
+                )
